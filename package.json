@@ -1,0 +1,16 @@
+{
+  "name": "super-smash-clone",
+  "version": "1.0.0",
+  "description": "High-fidelity platform fighter with local & online multiplayer, complete Smash Bros physics, DI, shields, multiple characters, and frame data viewer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "stop": "node stop.js",
+    "restart": "node stop.js && node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

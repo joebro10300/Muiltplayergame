@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Super Smash Arena | Platform Fighter</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    if (typeof io === 'undefined') {
+      const fbScript = document.createElement('script');
+      fbScript.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+      document.head.appendChild(fbScript);
+    }
+  </script>
+</head>
+<body>
+
+  <!-- Main Game Canvas -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Title Screen -->
+  <div id="screen-title" class="ui-overlay">
+    <h1 class="smash-title">SUPER SMASH ARENA</h1>
+    <div class="smash-subtitle">Next-Gen Platform Fighter Clone</div>
+
+    <div class="btn-group">
+      <button class="btn-primary" onclick="ui.showScreen('char-select', 'local_vs')">
+        <span>🥊</span> Local Match (P1 vs CPU)
+      </button>
+      <button class="btn-primary" onclick="ui.showScreen('online-menu')">
+        <span>🌐</span> Online Multiplayer
+      </button>
+      <button class="btn-primary" onclick="ui.showScreen('char-select', 'training')">
+        <span>🎯</span> Training Mode
+      </button>
+      <button class="btn-secondary" onclick="ui.openViewer()">
+        <span>🎞️</span> Animation & Frame Studio
+      </button>
+      <button class="btn-secondary" onclick="ui.showModal('modal-controls')">
+        <span>🎮</span> Controls & Mechanics Guide
+      </button>
+    </div>
+  </div>
+
+  <!-- Character Select Screen -->
+  <div id="screen-char-select" class="ui-overlay hidden">
+    <h2 class="smash-title" style="font-size: 2.5rem;">CHOOSE YOUR FIGHTER</h2>
+    <div id="char-selection-sub" class="smash-subtitle">Player 1: Select Your Character</div>
+
+    <div class="char-grid" id="char-grid">
+      <!-- Injected dynamically -->
+    </div>
+
+    <div style="display: flex; gap: 1rem; align-items: center; margin-top: 1rem;">
+      <button class="btn-secondary" onclick="ui.showScreen('title')">Back</button>
+      <button id="btn-char-confirm" class="btn-primary" onclick="ui.confirmCharacterSelection()" disabled>
+        Confirm Selection
+      </button>
+    </div>
+  </div>
+
+  <!-- Stage Select Screen -->
+  <div id="screen-stage-select" class="ui-overlay hidden">
+    <h2 class="smash-title" style="font-size: 2.5rem;">SELECT BATTLEGROUND</h2>
+    <div class="smash-subtitle">Choose Arena Layout</div>
+
+    <div class="stage-grid" id="stage-grid">
+      <div class="stage-card selected" onclick="ui.selectStage('battlefield', this)">
+        <div class="stage-preview" style="background: linear-gradient(135deg, #1e1b4b, #38bdf8);">🌌</div>
+        <h3>Battlefield</h3>
+        <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">Main platform + 3 soft tri-platforms</p>
+      </div>
+
+      <div class="stage-card" onclick="ui.selectStage('final_destination', this)">
+        <div class="stage-preview" style="background: linear-gradient(135deg, #3b0764, #ec4899);">🪐</div>
+        <h3>Final Destination</h3>
+        <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">Flat tournament arena, zero platforms</p>
+      </div>
+
+      <div class="stage-card" onclick="ui.selectStage('smashville', this)">
+        <div class="stage-preview" style="background: linear-gradient(135deg, #78350f, #fdba74);">🌇</div>
+        <h3>Smashville</h3>
+        <p style="font-size: 0.8rem; color: #94a3b8; margin-top: 4px;">1 solid floor + 1 gliding horizontal platform</p>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+      <button class="btn-secondary" onclick="ui.showScreen('char-select')">Back</button>
+      <button class="btn-primary" onclick="ui.startSelectedGame()">FIGHT!</button>
+    </div>
+  </div>
+
+  <!-- Online Multiplayer Menu -->
+  <div id="screen-online-menu" class="ui-overlay hidden">
+    <h2 class="smash-title" style="font-size: 2.5rem;">ONLINE MULTIPLAYER</h2>
+    <div class="smash-subtitle">Real-time room matchmaking</div>
+
+    <div class="lobby-box">
+      <div style="display: flex; flex-direction: column; gap: 1rem; align-items: center;">
+        <div id="server-status-badge" style="display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; background: rgba(30, 41, 59, 0.8); border: 1px solid #334155; color: #94a3b8; cursor: pointer;" onclick="ui.checkServerConnection()">
+          <span id="server-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #eab308; display: inline-block;"></span>
+          <span id="server-status-text">Checking server connection...</span>
+        </div>
+
+        <input type="text" id="online-name-input" placeholder="Enter Your Nickname" value="Player" style="width: 100%; box-sizing: border-box; padding: 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; text-align: center; font-size: 1.1rem;">
+        
+        <button class="btn-primary" style="width: 100%;" onclick="ui.createOnlineRoom()">Create Private Room</button>
+
+        <div style="display: flex; gap: 8px; width: 100%;">
+          <input type="text" id="join-room-input" placeholder="4-Letter Room Code" maxlength="4" style="flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; text-align: center; font-weight: bold; text-transform: uppercase;">
+          <button class="btn-secondary" onclick="ui.joinOnlineRoom()">Join</button>
+        </div>
+
+        <button class="btn-secondary" style="width: 100%; margin-top: 10px;" onclick="ui.showScreen('title')">Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Online Room Lobby -->
+  <div id="screen-online-lobby" class="ui-overlay hidden">
+    <div class="lobby-box">
+      <h3>MULTIPLAYER ROOM</h3>
+      <div id="display-room-code" class="room-code-badge">----</div>
+      <p style="font-size: 0.85rem; color: #94a3b8;">Share this code with your opponent!</p>
+
+      <div style="margin: 20px 0; text-align: left; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 8px;">
+        <div id="lobby-player-list">Connecting...</div>
+      </div>
+
+      <div style="display: flex; gap: 10px; justify-content: center;">
+        <button id="btn-start-online" class="btn-primary" onclick="network.startMatch()" style="display: none;">Start Match</button>
+        <button class="btn-secondary" onclick="ui.leaveOnlineLobby()">Leave Room</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls Modal -->
+  <div id="modal-controls" class="ui-overlay hidden">
+    <div class="controls-modal">
+      <h2 style="color: #38bdf8; margin-bottom: 8px;">CONTROLS & COMBAT MECHANICS</h2>
+      <p style="color: #94a3b8; font-size: 0.9rem;">Full support for Keyboard, Xbox / PlayStation / Switch controllers, and Mobile Touch.</p>
+
+      <table class="controls-table">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Player 1 (Keyboard)</th>
+            <th>Gamepad</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Move / Crouch</strong></td>
+            <td><span class="key-badge">A</span> <span class="key-badge">D</span> / <span class="key-badge">S</span></td>
+            <td>Left Stick / D-Pad</td>
+          </tr>
+          <tr>
+            <td><strong>Jump / Double Jump</strong></td>
+            <td><span class="key-badge">Space</span> or <span class="key-badge">W</span></td>
+            <td>Button A / X / Y</td>
+          </tr>
+          <tr>
+            <td><strong>Standard Attack / Tilt / Aerial</strong></td>
+            <td><span class="key-badge">J</span></td>
+            <td>Button X (Square)</td>
+          </tr>
+          <tr>
+            <td><strong>Special Move (B)</strong></td>
+            <td><span class="key-badge">K</span></td>
+            <td>Button B (Circle)</td>
+          </tr>
+          <tr>
+            <td><strong>Smash Attack</strong></td>
+            <td><span class="key-badge">U</span> + Attack, or Dir + Attack</td>
+            <td>Right Stick (C-Stick)</td>
+          </tr>
+          <tr>
+            <td><strong>Shield / Bubble</strong></td>
+            <td><span class="key-badge">L</span></td>
+            <td>Left Trigger (LT / LB)</td>
+          </tr>
+          <tr>
+            <td><strong>Spot Dodge / Roll</strong></td>
+            <td>Shield + <span class="key-badge">S</span> / <span class="key-badge">A</span> or <span class="key-badge">D</span></td>
+            <td>Trigger + Direction</td>
+          </tr>
+          <tr>
+            <td><strong>Air Dodge</strong></td>
+            <td><span class="key-badge">L</span> in mid-air</td>
+            <td>Trigger in mid-air</td>
+          </tr>
+          <tr>
+            <td><strong>Ledge Options</strong></td>
+            <td>Up/Jump to jump, J to attack, L to roll</td>
+            <td>Buttons on ledge</td>
+          </tr>
+          <tr>
+            <td><strong>Drop Through Platform</strong></td>
+            <td>Tap <span class="key-badge">S</span> down on semi-solid</td>
+            <td>Push stick down</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <button class="btn-primary" onclick="ui.hideModal('modal-controls')">Close</button>
+    </div>
+  </div>
+
+  <!-- Animation & Frame Data Studio Modal -->
+  <div id="modal-viewer" class="ui-overlay hidden">
+    <div class="viewer-container">
+      <div class="viewer-sidebar">
+        <h3 style="color: #38bdf8;">ANIMATION & FRAME STUDIO</h3>
+        <p style="font-size: 0.8rem; color: #94a3b8;">Inspect active hitbox windows, hurtboxes, and move frame data.</p>
+
+        <div>
+          <label style="font-size: 0.8rem; color: #cbd5e1;">Select Character:</label>
+          <select id="viewer-char-select" onchange="viewer.selectCharacter(this.value)" style="width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px; background: #1e293b; color: white; border: 1px solid #334155;">
+            <option value="brawler">Brawler (Mario)</option>
+            <option value="space_ace">Space Ace (Fox)</option>
+            <option value="swordmaster">Swordmaster (Marth)</option>
+            <option value="thunder_striker">Thunder Striker (Pikachu)</option>
+            <option value="titan_dragon">Titan Dragon (Bowser)</option>
+          </select>
+        </div>
+
+        <div>
+          <label style="font-size: 0.8rem; color: #cbd5e1;">Select Animation / Move:</label>
+          <select id="viewer-anim-select" onchange="viewer.selectAnimation(this.value)" style="width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px; background: #1e293b; color: white; border: 1px solid #334155;">
+            <option value="idle">Idle Neutral Pose</option>
+            <option value="jab">Jab Attack</option>
+            <option value="ftilt">Forward Tilt</option>
+            <option value="utilt">Up Tilt</option>
+            <option value="dtilt">Down Tilt</option>
+            <option value="fsmash">Forward Smash</option>
+            <option value="usmash">Up Smash</option>
+            <option value="dsmash">Down Smash</option>
+            <option value="nair">Neutral Air (Nair)</option>
+            <option value="fair">Forward Air (Fair)</option>
+            <option value="bair">Back Air (Bair)</option>
+            <option value="uair">Up Air (Uair)</option>
+            <option value="dair">Down Air (Dair Spike)</option>
+            <option value="neutral_special">Neutral Special (B)</option>
+            <option value="side_special">Side Special</option>
+            <option value="up_special">Up Special (Recovery)</option>
+            <option value="down_special">Down Special</option>
+          </select>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <label style="display: flex; gap: 8px; align-items: center; font-size: 0.85rem; cursor: pointer;">
+            <input type="checkbox" checked onchange="viewer.showHitboxes = this.checked"> Show Active Hitboxes (Red)
+          </label>
+          <label style="display: flex; gap: 8px; align-items: center; font-size: 0.85rem; cursor: pointer; margin-top: 6px;">
+            <input type="checkbox" checked onchange="viewer.showHurtboxes = this.checked"> Show Hurtbox (Blue)
+          </label>
+        </div>
+
+        <div id="viewer-frame-stats" style="margin-top: auto; background: rgba(0,0,0,0.4); padding: 10px; border-radius: 8px;">
+          <!-- Live stats injected here -->
+        </div>
+
+        <button class="btn-secondary" onclick="ui.closeViewer()">Exit Studio</button>
+      </div>
+
+      <div class="viewer-main">
+        <canvas id="viewer-canvas"></canvas>
+        <div class="viewer-controls">
+          <button class="btn-secondary" onclick="viewer.stepFrame(-1)">⏮ Step Back</button>
+          <button class="btn-primary" onclick="viewer.togglePlay()">⏯ Play / Pause</button>
+          <button class="btn-secondary" onclick="viewer.stepFrame(1)">⏭ Step Forward</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Training Mode In-Game Floating HUD Panel -->
+  <div id="training-panel" class="hidden">
+    <strong style="color: #38bdf8;">🎯 TRAINING TOOLKIT</strong>
+    <label>
+      Target Damage: <span id="dmg-display">0%</span>
+      <input type="range" min="0" max="300" value="0" oninput="ui.setTargetDamage(this.value)">
+    </label>
+    <label>
+      Hitbox Viewer:
+      <input type="checkbox" onchange="game.showHitboxes = this.checked">
+    </label>
+    <label>
+      CPU Behavior:
+      <select onchange="ui.setCPUMode(this.value)" style="background: #1e293b; color: white; border: 1px solid #475569; border-radius: 4px; padding: 2px 4px;">
+        <option value="normal">Active AI</option>
+        <option value="stand">Stand Still</option>
+        <option value="shield">Always Shield</option>
+        <option value="jump">Constant Jump</option>
+      </select>
+    </label>
+    <button class="btn-secondary" onclick="ui.resetPositions()" style="padding: 6px; font-size: 0.8rem;">Reset Positions (R)</button>
+    <button class="btn-danger" onclick="ui.quitMatch()" style="padding: 6px; font-size: 0.8rem;">Exit Training</button>
+  </div>
+
+  <!-- Touch Controls (Mobile) -->
+  <div id="touch-controls">
+    <div style="display: flex; gap: 8px;">
+      <button class="touch-btn" ontouchstart="inputManager.touchState.stickX = -1; inputManager.touchState.active = true;" ontouchend="inputManager.touchState.stickX = 0;">◀</button>
+      <button class="touch-btn" ontouchstart="inputManager.touchState.stickX = 1; inputManager.touchState.active = true;" ontouchend="inputManager.touchState.stickX = 0;">▶</button>
+      <button class="touch-btn" ontouchstart="inputManager.touchState.stickY = 1; inputManager.touchState.active = true;" ontouchend="inputManager.touchState.stickY = 0;">▼</button>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="touch-btn" ontouchstart="inputManager.touchState.attack = true; inputManager.touchState.active = true;" ontouchend="inputManager.touchState.attack = false;">A</button>
+      <button class="touch-btn" ontouchstart="inputManager.touchState.special = true; inputManager.touchState.active = true;" ontouchend="inputManager.touchState.special = false;">B</button>
+      <button class="touch-btn" ontouchstart="inputManager.touchState.jump = true; inputManager.touchState.active = true;" ontouchend="inputManager.touchState.jump = false;">⤴</button>
+      <button class="touch-btn" ontouchstart="inputManager.touchState.shield = true; inputManager.touchState.active = true;" ontouchend="inputManager.touchState.shield = false;">🛡</button>
+    </div>
+  </div>
+
+  <!-- Core Game Engine Scripts -->
+  <script src="js/audio.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/animation.js"></script>
+  <script src="js/characters.js"></script>
+  <script src="js/stages.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/viewer.js"></script>
+  <script src="js/game.js"></script>
+
+  <!-- UI Orchestration Script -->
+  <script>
+    class UIManager {
+      constructor() {
+        this.selectedMode = 'local_vs';
+        this.selectedP1Char = 'brawler';
+        this.selectedP2Char = 'space_ace';
+        this.selectedStage = 'battlefield';
+        this.selectingPlayer = 1;
+        this.viewerAnimId = null;
+      }
+
+      init() {
+        this.populateCharacterGrid();
+        this.setupKeyboardShortcuts();
+        this.setupNetworkStatusListener();
+      }
+
+      setupKeyboardShortcuts() {
+        window.addEventListener('keydown', (e) => {
+          if (e.code === 'KeyR' && game.gameState === 'playing') {
+            this.resetPositions();
+          }
+          if (e.code === 'KeyP' && game.gameState === 'playing') {
+            game.isPaused = !game.isPaused;
+          }
+        });
+      }
+
+      setupNetworkStatusListener() {
+        network.on('connectionStatus', (data) => {
+          this.updateServerStatus(data);
+        });
+      }
+
+      checkServerConnection() {
+        this.updateServerStatus({ status: 'connecting', message: 'Reconnecting...' });
+        network.init();
+      }
+
+      updateServerStatus(data) {
+        const dot = document.getElementById('server-status-dot');
+        const text = document.getElementById('server-status-text');
+        if (!dot || !text) return;
+
+        if (data.status === 'connected') {
+          dot.style.background = '#22c55e';
+          text.innerText = 'Connected to server';
+          text.style.color = '#86efac';
+        } else if (data.status === 'connecting') {
+          dot.style.background = '#eab308';
+          text.innerText = data.message || 'Connecting...';
+          text.style.color = '#fde047';
+        } else {
+          dot.style.background = '#ef4444';
+          text.innerText = data.message || 'Server offline (click to retry)';
+          text.style.color = '#fca5a5';
+        }
+      }
+
+      showScreen(screenId, mode) {
+        if (mode) this.selectedMode = mode;
+        sounds.menuSelect();
+
+        document.querySelectorAll('.ui-overlay').forEach(el => el.classList.add('hidden'));
+        const target = document.getElementById(`screen-${screenId}`);
+        if (target) target.classList.remove('hidden');
+
+        // Hide training panel if leaving match
+        if (screenId !== 'game') {
+          document.getElementById('training-panel').classList.add('hidden');
+        }
+
+        if (screenId === 'online-menu') {
+          network.init();
+          if (network.connected) {
+            this.updateServerStatus({ status: 'connected' });
+          }
+        }
+      }
+
+      showModal(modalId) {
+        sounds.menuSelect();
+        const el = document.getElementById(modalId);
+        if (el) el.classList.remove('hidden');
+      }
+
+      hideModal(modalId) {
+        sounds.menuBack();
+        const el = document.getElementById(modalId);
+        if (el) el.classList.add('hidden');
+      }
+
+      populateCharacterGrid() {
+        const grid = document.getElementById('char-grid');
+        grid.innerHTML = '';
+
+        const icons = {
+          brawler: '🥊',
+          space_ace: '🦊',
+          swordmaster: '⚔️',
+          thunder_striker: '⚡',
+          titan_dragon: '🐲'
+        };
+
+        for (const key in CHARACTERS) {
+          const char = CHARACTERS[key];
+          const card = document.createElement('div');
+          card.className = `char-card ${key === this.selectedP1Char ? 'selected-p1' : ''}`;
+          card.onclick = () => this.selectCharacter(key, card);
+
+          card.innerHTML = `
+            <div class="char-avatar">${icons[key] || '🥋'}</div>
+            <div class="char-name">${char.name}</div>
+            <div class="char-archetype">${char.title}</div>
+            <div class="char-stats">
+              <span>Weight: ${char.weight}</span>
+              <span>Speed: ${char.runSpeed}</span>
+              <span>Jump: ${Math.abs(char.jumpForce)}</span>
+            </div>
+          `;
+          grid.appendChild(card);
+        }
+
+        document.getElementById('btn-char-confirm').disabled = false;
+      }
+
+      selectCharacter(charId, cardElem) {
+        sounds.menuSelect();
+        document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected-p1', 'selected-p2'));
+
+        if (this.selectingPlayer === 1) {
+          this.selectedP1Char = charId;
+          cardElem.classList.add('selected-p1');
+        } else {
+          this.selectedP2Char = charId;
+          cardElem.classList.add('selected-p2');
+        }
+      }
+
+      confirmCharacterSelection() {
+        sounds.menuSelect();
+        if (this.selectedMode === 'local_vs' && this.selectingPlayer === 1) {
+          // Now pick CPU opponent
+          this.selectingPlayer = 2;
+          document.getElementById('char-selection-sub').innerText = 'Select Opponent / CPU Fighter';
+          document.querySelectorAll('.char-card').forEach(c => c.classList.remove('selected-p1'));
+          const p2Card = document.querySelector(`.char-card:nth-child(2)`);
+          if (p2Card) p2Card.classList.add('selected-p2');
+        } else {
+          this.selectingPlayer = 1;
+          document.getElementById('char-selection-sub').innerText = 'Player 1: Select Your Character';
+          this.showScreen('stage-select');
+        }
+      }
+
+      selectStage(stageId, cardElem) {
+        sounds.menuSelect();
+        this.selectedStage = stageId;
+        document.querySelectorAll('.stage-card').forEach(c => c.classList.remove('selected-selected', 'selected'));
+        cardElem.classList.add('selected');
+      }
+
+      startSelectedGame() {
+        document.querySelectorAll('.ui-overlay').forEach(el => el.classList.add('hidden'));
+
+        if (this.selectedMode === 'training') {
+          document.getElementById('training-panel').classList.remove('hidden');
+        }
+
+        game.startMatch(
+          this.selectedP1Char,
+          this.selectedP2Char,
+          this.selectedStage,
+          this.selectedMode,
+          6 // Default AI level
+        );
+      }
+
+      resetPositions() {
+        if (!game.fighters[0] || !game.fighters[1]) return;
+        const sp1 = game.stage.spawns[0] || { x: -160, y: 100 };
+        const sp2 = game.stage.spawns[1] || { x: 160, y: 100 };
+        game.fighters[0].resetPosition(sp1.x, sp1.y);
+        game.fighters[1].resetPosition(sp2.x, sp2.y);
+        game.fighters[0].facing = 1;
+        game.fighters[1].facing = -1;
+      }
+
+      setTargetDamage(dmg) {
+        document.getElementById('dmg-display').innerText = `${dmg}%`;
+        if (game.fighters[1]) {
+          game.fighters[1].damage = parseInt(dmg);
+        }
+      }
+
+      setCPUMode(mode) {
+        if (!game.p2AI) return;
+        if (mode === 'stand') game.p2AI.difficulty = 0;
+        else if (mode === 'normal') game.p2AI.difficulty = 6;
+      }
+
+      quitMatch() {
+        game.gameState = 'menu';
+        this.showScreen('title');
+      }
+
+      // Animation & Frame Data Studio
+      openViewer() {
+        sounds.menuSelect();
+        this.showModal('modal-viewer');
+        viewer.init();
+
+        const vCanvas = document.getElementById('viewer-canvas');
+        vCanvas.width = vCanvas.clientWidth || 800;
+        vCanvas.height = vCanvas.clientHeight || 500;
+        const vCtx = vCanvas.getContext('2d');
+
+        const renderViewerLoop = () => {
+          if (document.getElementById('modal-viewer').classList.contains('hidden')) {
+            cancelAnimationFrame(this.viewerAnimId);
+            return;
+          }
+          viewer.render(vCtx, vCanvas.width, vCanvas.height);
+          this.viewerAnimId = requestAnimationFrame(renderViewerLoop);
+        };
+        this.viewerAnimId = requestAnimationFrame(renderViewerLoop);
+      }
+
+      closeViewer() {
+        this.hideModal('modal-viewer');
+        if (this.viewerAnimId) cancelAnimationFrame(this.viewerAnimId);
+      }
+
+      // Online Multiplayer Hooks
+      createOnlineRoom() {
+        const name = document.getElementById('online-name-input').value || 'Player 1';
+        network.init();
+        network.createRoom(name, this.selectedP1Char, this.selectedStage);
+
+        network.on('roomCreated', (data) => {
+          document.getElementById('display-room-code').innerText = data.roomCode;
+          document.getElementById('lobby-player-list').innerHTML = `
+            <div><strong>Host:</strong> ${name} (${this.selectedP1Char.toUpperCase()})</div>
+            <div style="color: #94a3b8; margin-top: 6px;">Waiting for opponent to join...</div>
+          `;
+          document.getElementById('btn-start-online').style.display = 'inline-block';
+          this.showScreen('online-lobby');
+        });
+
+        network.on('playerJoined', (data) => {
+          document.getElementById('lobby-player-list').innerHTML += `
+            <div style="color: #38bdf8; margin-top: 6px;"><strong>Opponent:</strong> ${data.player.name} (${data.player.characterId.toUpperCase()})</div>
+          `;
+        });
+      }
+
+      joinOnlineRoom() {
+        const code = document.getElementById('join-room-input').value;
+        const name = document.getElementById('online-name-input').value || 'Player 2';
+        if (!code) {
+          alert('Please enter a 4-letter room code.');
+          return;
+        }
+
+        network.init();
+        network.joinRoom(code, name, this.selectedP1Char);
+
+        network.on('roomJoined', (data) => {
+          document.getElementById('display-room-code').innerText = data.roomCode;
+          document.getElementById('lobby-player-list').innerHTML = `
+            <div><strong>Connected to Room:</strong> ${data.roomCode}</div>
+            <div style="color: #94a3b8; margin-top: 6px;">Waiting for host to start match...</div>
+          `;
+          document.getElementById('btn-start-online').style.display = 'none';
+          this.showScreen('online-lobby');
+        });
+      }
+
+      leaveOnlineLobby() {
+        network.leaveRoom();
+        this.showScreen('title');
+      }
+    }
+
+    const ui = new UIManager();
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const canvas = document.getElementById('game-canvas');
+      game.init(canvas);
+      sounds.init();
+      ui.init();
+    });
+  </script>
+</body>
+</html>
